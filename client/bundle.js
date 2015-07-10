@@ -29,8 +29,7 @@ var map = new Map()
 var keyboard = new KeyboardJS(false)
 
 var playerTexture = PIXI.Texture.fromImage('player.png')
-var streamTexture =PIXI.Texture.fromImage('stream.png') 
-var playerSpeed = 5
+var streamTexture = PIXI.Texture.fromImage('stream.png')
 
 PlayerClient.prototype = new Player()
 PlayerClient.prototype.constructor = PlayerClient
@@ -53,7 +52,6 @@ PlayerClient.prototype.generateSprite = function () {
     x: this.pos.x,
     y: this.pos.y
   })
-  console.log('POS = ' + this.pos)
   this.sprite.anchor.set(0.5, 0.5)
   this.sprite.scale.set(0.2, 0.2)
 
@@ -66,10 +64,10 @@ PlayerClient.prototype.generateSprite = function () {
 }
 
 PlayerClient.prototype.movement = function () {
-  if(this.direction == 0) this.pos.y -= playerSpeed
-  else if(this.direction == 1) this.pos.x += playerSpeed
-  else if(this.direction == 2) this.pos.y += playerSpeed
-  else if(this.direction == 3) this.pos.x -= playerSpeed
+  if(this.direction == 0) this.pos.y -= this.speed
+  else if(this.direction == 1) this.pos.x += this.speed
+  else if(this.direction == 2) this.pos.y += this.speed
+  else if(this.direction == 3) this.pos.x -= this.speed
 }
 
 PlayerClient.prototype.setUsername = function (username) {
@@ -130,12 +128,47 @@ PlayerClient.prototype.rotate = function (Dir) {
   }
 }
 
-PlayerClient.prototype.generateStream = function (pos) {
+PlayerClient.prototype.generateStream = function (dp) {
   this.stream = new PIXI.Sprite(streamTexture)
   this.stream.anchor.set(0.5, 0.5)
-  this.stream.position = pos
+  //if(dp.dire == 0) dp.pos.y = dp.pos.y + this.sprite.height/2
+  //if(dp.dire == 1) dp.pos.x = dp.pos.x - this.sprite.height/2
+  //if(dp.dire == 2) dp.pos.y = dp.pos.y - this.sprite.height/2
+  //if(dp.dire == 3) dp.pos.x = dp.pos.x + this.sprite.height/2
+  this.stream.position = dp.pos
   this.stream.tint = this.color
   this.fullstream.push(this.stream)
+}
+
+PlayerClient.prototype.boost = function (booster) {
+  if(booster == 1) {
+    this.boost_time += 20
+    this.stat.speedup = 1
+    playerSpeed = 15
+  }
+  else if(booster == 2) {
+    this.boost_time += 20
+    this.stat.invisible = 1
+  }
+  else if(booster == 3) {
+    this.boost_time += 20
+    this.stat.invincible = 1
+
+  }
+}
+
+PlayerClient.prototype.initial_stats = function() {
+  this.boost_time = 0
+  if(this.stat.speedup == 1) {
+    this.stat.speedup = 0
+    this.speed = 5
+  }
+  if(this.stat.invisible == 1) {
+    this.stat.invisible = 0
+  }
+  if(this.stat.invincible == 1) {
+    this.stat.invincible = 0
+  } 
 }
 
 
@@ -147,7 +180,13 @@ PlayerClient.prototype.generatePacket = function () {
       x: this.pos.x,
       y: this.pos.y
     },
-    direction: this.direction
+    direction: this.direction,
+    boost_time: this.boost_time,
+    stat: {
+      speedup:this.stat.speedup, 
+      invisible:this.stat.invisible, 
+      invincible:this.stat.invincible
+    }
   }
   return packet
 }
@@ -164,6 +203,7 @@ var socket = require('socket.io-client')(serverURL)
 // You can use either `new PIXI.WebGLRenderer`, `new PIXI.CanvasRenderer`, or `PIXI.autoDetectRenderer`
 // which will try to choose the best renderer for the environment you are in.
 var renderer = new PIXI.autoDetectRenderer(800, 600);
+renderer.backgroundColor = 0xf0f0f0
 
 // The renderer will create a canvas element for you that you can then insert into the DOM.
 document.body.appendChild(renderer.view);
@@ -176,36 +216,45 @@ var username = prompt("What's your username?")
 player.setUsername(username)
 
 // Add the player's sprite to the scene we are building.
-stage.addChild(player.sprite);
 global.player = player
 
 var Dir = {oldDir:0, newDir:0}
 
 var otherPlayers = {}
 global.otherPlayers = otherPlayers
-var pickupTexture = PIXI.Texture.fromImage('pickup1.png')
+var pickup1 = PIXI.Texture.fromImage('pickup1.png')
+var pickup2 = PIXI.Texture.fromImage('pickup2.png')
+var pickup3 = PIXI.Texture.fromImage('pickup3.png')
 var pickups = {}
+var id_pickups = {}
 
+var barrierTexture = PIXI.Texture.fromImage('barrier.png') 
+var barrier = new PIXI.Sprite(barrierTexture)
+barrier.anchor.set(0.5, 0.5)
+barrier.position = player.sprite.position
 // kick off the animation loop (defined below)
 animate();
 
 function animate() {
     // start the timer for the next animation loop
     requestAnimationFrame(animate);
-
+    stage.addChild(player.sprite);
     // move player using keyboard keys
-    Dir.oldDir = player.direction
     var DirChanged = player.moveUsingInput()
     if(DirChanged) {
       Dir.newDir = player.direction
       socket.emit('update_direction', Dir)
     }
-    var oldPos = player.pos.clone()
     player.movement()
-    player.generateStream(oldPos)
-    player.sprite.addChild(player.stream)
+    var DirPos = {dire: player.direction, pos: player.pos.clone()}
+    player.generateStream(DirPos)
+    stage.addChild(player.stream)
+    stage.addChild(player.sprite)
+    socket.emit('update_stream', DirPos)
     socket.emit('update_position', player.pos)
-    
+    if(player.stat.invincible == 1) player.sprite.addChild(barrier)
+    if(player.boost_time > 0) --player.boost_time
+    if(player.boosted() && player.boost_time == 0) player.initial_stats() 
 
     // this is the main render call that makes pixi draw your container and its children.
     renderer.render(stage);
@@ -222,11 +271,15 @@ socket.on('logged_player', function (playerInfo) {
 })
 
 socket.on('update_direction', function (pDir) {
-  // pos
-  // {x, y, id}
   var otherPlayer = otherPlayers[pDir.id]
   otherPlayer.updateDirection(pDir.newDir)
   otherPlayer.rotate(pDir)
+})
+
+socket.on('update_stream', function (dp) {
+  var otherPlayer = otherPlayers[dp.pos.id]
+  otherPlayer.generateStream(dp)
+  stage.addChild(otherPlayer.stream)
 })
 
 socket.on('update_position', function (pos) {
@@ -234,27 +287,47 @@ socket.on('update_position', function (pos) {
   // {x, y, id}
   var otherPlayer = otherPlayers[pos.id]
   otherPlayer.updatePosition(pos)
+  stage.addChild(otherPlayer.sprite)
 })
 
 socket.on('init_pickups', function (newPickups) {
   for (var pickupId in newPickups) {
     var pickup = newPickups[pickupId]
-    var pickupSprite = new PIXI.Sprite(pickupTexture)
+    var rand = Math.ceil(Math.random()*3)
+    if(rand == 1)var pickupSprite = new PIXI.Sprite(pickup1)
+    else if(rand == 2) var pickupSprite = new PIXI.Sprite(pickup2)
+    else if (rand == 3) var pickupSprite = new PIXI.Sprite(pickup3)
     pickupSprite.position.x = pickup.x
     pickupSprite.position.y = pickup.y
     pickupSprite.anchor.set(0.5, 0.5)
-    pickupSprite.scale.set(0.05, 0.05)
+    pickupSprite.scale.set(0.1, 0.1)
     stage.addChild(pickupSprite)
     pickups[pickupId] = pickupSprite
+    id_pickups[pickupId] = rand
   }
 })
 
-socket.on('collected_pickup', function (pickupId) {
-  var pickupSprite = pickups[pickupId]
+socket.on('collected_pickup', function (Id) {
+  var pickupSprite = pickups[Id.pickupId]
   if (pickupSprite) {
+    var otherPlayer = otherPlayers[Id.playerId]
+    var booster = id_pickups[Id.pickupId]
+    otherPlayer.boost(booster)
     stage.removeChild(pickupSprite)
-    delete pickups[pickupId]
+    delete pickups[Id.pickupId]
+    delete id_pickups[Id.pickupId]
   }
+})
+
+socket.on('players_collision', function (Id) {
+    var player_over1 = otherPlayers[Id.playerId]
+    //var player_over2 = otherPlayers[Id.enemyId]
+    console.log(player_over1)
+    console.log(player_over2)
+    //stage.removeChild(player_over1)
+    //stage.removeChild(player_over2)
+    delete otherPlayers[Id.playerId]
+    //delete otherPlayers[Id.enemyId]
 })
 
 socket.on('player_disconnected', function (id) {
@@ -7303,7 +7376,10 @@ function Player () {
     x: 0,
     y: 0
   }
+  this.speed = 5
   this.direction = 0 // 0: up, 1: right, 2: down, 3: left
+  this.boost_time = 0
+  this.stat = {speedup:0, invisible:0, invincible:0}
   this.stream = {}
   this.fullstream = []
 }
@@ -7315,6 +7391,11 @@ Player.prototype.updatePosition = function (pos) {
 
 Player.prototype.updateDirection = function (dir) {
 	this.direction = dir
+}
+
+Player.prototype.boosted = function () {
+  if(this.stat.speedup == 1 || this.stat.invisible == 1 || this.stat.invincible == 1) return true
+  else return false
 }
 
 module.exports = Player

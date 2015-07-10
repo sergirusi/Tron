@@ -2,9 +2,9 @@ var port = process.env.PORT || 9000
 var io = require('socket.io')(port)
 
 var Player = require('../shared/Player.js')
+var Map = require('../shared/Map.js')
 
-var MAP_WIDTH = 800
-var MAP_HEIGHT = 600
+var map = new Map()
 
 var players = {}
 var pickups = {}
@@ -31,7 +31,12 @@ io.on('connection', function (socket) {
     player.username = info.username
     player.color = info.color
     player.pos = info.pos
+    player.speed = info.speed
     player.direction = info.direction
+    player.boost_time = info.boost_time
+    player.stat = info.stat
+    player.stream = info.stream
+    player.fullstream = info.fullstream
     socket.broadcast.emit('logged_player', player)
   })
 
@@ -42,6 +47,12 @@ io.on('connection', function (socket) {
     Dir.id = socket.id
     socket.broadcast.emit('update_direction', Dir)
     checkPickupCollision(socket.id)
+    checkMotoCollision(socket.id)
+  })
+
+  socket.on('update_stream', function (DirPos) {
+    DirPos.pos.id = socket.id
+    socket.broadcast.emit('update_stream', DirPos)
   })
 
   socket.on('update_position', function (pos) {
@@ -51,6 +62,7 @@ io.on('connection', function (socket) {
     pos.id = socket.id
     socket.broadcast.emit('update_position', pos)
     checkPickupCollision(socket.id)
+    checkMotoCollision(socket.id)
   })
 
   socket.on('disconnect', function () {
@@ -64,9 +76,10 @@ var pickupCount = Math.floor(Math.random() * 30 + 10)
 for (var i = 0; i < pickupCount; ++i) {
   var pickup = {
     id: i,
-    x: Math.floor(Math.random() * MAP_WIDTH),
-    y: Math.floor(Math.random() * MAP_HEIGHT)
+    x: 0,
+    y: 0
   }
+  map.random_position(pickup)
   pickups[pickup.id] = pickup
 }
 
@@ -74,8 +87,9 @@ function checkPickupCollision (playerId) {
   var player = players[playerId]
   for (var pickupId in pickups) {
     var pickup = pickups[pickupId]
-    if (distPtoP(player.pos, pickup) < 50) {
-      io.sockets.emit('collected_pickup', pickup.id)
+    if (distPtoP(player.pos, pickup) < 30) {
+      var IDs = {playerId: playerId, pickupId: pickup.id}
+      io.sockets.emit('collected_pickup', IDs)
       console.log('collision with pickup', pickup)
       delete pickups[pickupId]
     }
@@ -84,6 +98,20 @@ function checkPickupCollision (playerId) {
 
 function distPtoP (pos1, pos2) {
   return Math.sqrt(Math.pow(pos1.x - pos2.x, 2) + Math.pow(pos1.y - pos2.y, 2))
+}
+
+function checkMotoCollision (playerId) {
+  var player = players[playerId]
+  for (var enemyId in players) {
+    var enemy = players[enemyId]
+    if (enemyId != playerId && distPtoP(player.pos, enemy.pos) < 30) {
+      var IDs = {playerId: playerId, enemyId: enemyId}
+      io.sockets.emit('players_collision', IDs)
+      console.log('collision with players', pickup)
+      delete players[playerId]
+      delete players[enemyId]
+    }
+  }
 }
 
 console.log('server started on port', port)

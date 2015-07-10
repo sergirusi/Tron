@@ -7,8 +7,7 @@ var map = new Map()
 var keyboard = new KeyboardJS(false)
 
 var playerTexture = PIXI.Texture.fromImage('player.png')
-var streamTexture =PIXI.Texture.fromImage('stream.png') 
-var playerSpeed = 5
+var streamTexture = PIXI.Texture.fromImage('stream.png')
 
 PlayerClient.prototype = new Player()
 PlayerClient.prototype.constructor = PlayerClient
@@ -31,7 +30,6 @@ PlayerClient.prototype.generateSprite = function () {
     x: this.pos.x,
     y: this.pos.y
   })
-  console.log('POS = ' + this.pos)
   this.sprite.anchor.set(0.5, 0.5)
   this.sprite.scale.set(0.2, 0.2)
 
@@ -44,10 +42,10 @@ PlayerClient.prototype.generateSprite = function () {
 }
 
 PlayerClient.prototype.movement = function () {
-  if(this.direction == 0) this.pos.y -= playerSpeed
-  else if(this.direction == 1) this.pos.x += playerSpeed
-  else if(this.direction == 2) this.pos.y += playerSpeed
-  else if(this.direction == 3) this.pos.x -= playerSpeed
+  if(this.direction == 0) this.pos.y -= this.speed
+  else if(this.direction == 1) this.pos.x += this.speed
+  else if(this.direction == 2) this.pos.y += this.speed
+  else if(this.direction == 3) this.pos.x -= this.speed
 }
 
 PlayerClient.prototype.setUsername = function (username) {
@@ -108,12 +106,47 @@ PlayerClient.prototype.rotate = function (Dir) {
   }
 }
 
-PlayerClient.prototype.generateStream = function (pos) {
+PlayerClient.prototype.generateStream = function (dp) {
   this.stream = new PIXI.Sprite(streamTexture)
   this.stream.anchor.set(0.5, 0.5)
-  this.stream.position = pos
+  //if(dp.dire == 0) dp.pos.y = dp.pos.y + this.sprite.height/2
+  //if(dp.dire == 1) dp.pos.x = dp.pos.x - this.sprite.height/2
+  //if(dp.dire == 2) dp.pos.y = dp.pos.y - this.sprite.height/2
+  //if(dp.dire == 3) dp.pos.x = dp.pos.x + this.sprite.height/2
+  this.stream.position = dp.pos
   this.stream.tint = this.color
   this.fullstream.push(this.stream)
+}
+
+PlayerClient.prototype.boost = function (booster) {
+  if(booster == 1) {
+    this.boost_time += 20
+    this.stat.speedup = 1
+    playerSpeed = 15
+  }
+  else if(booster == 2) {
+    this.boost_time += 20
+    this.stat.invisible = 1
+  }
+  else if(booster == 3) {
+    this.boost_time += 20
+    this.stat.invincible = 1
+
+  }
+}
+
+PlayerClient.prototype.initial_stats = function() {
+  this.boost_time = 0
+  if(this.stat.speedup == 1) {
+    this.stat.speedup = 0
+    this.speed = 5
+  }
+  if(this.stat.invisible == 1) {
+    this.stat.invisible = 0
+  }
+  if(this.stat.invincible == 1) {
+    this.stat.invincible = 0
+  } 
 }
 
 
@@ -125,7 +158,13 @@ PlayerClient.prototype.generatePacket = function () {
       x: this.pos.x,
       y: this.pos.y
     },
-    direction: this.direction
+    direction: this.direction,
+    boost_time: this.boost_time,
+    stat: {
+      speedup:this.stat.speedup, 
+      invisible:this.stat.invisible, 
+      invincible:this.stat.invincible
+    }
   }
   return packet
 }
