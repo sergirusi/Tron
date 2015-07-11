@@ -1,11 +1,12 @@
 function Player () {
+  this.ID = 0
   this.username = 'Unnamed'
-  this.color = Math.floor(Math.random() * 0xFFFFFF)
+  this.color = Math.floor(Math.random() * 0x00FFFFFF)
   this.pos = {
     x: 0,
     y: 0
   }
-  this.speed = 5
+  this.speed = 2
   this.direction = 0 // 0: up, 1: right, 2: down, 3: left
   this.boost_time = 0
   this.stat = {speedup:0, invisible:0, invincible:0}

@@ -9,6 +9,7 @@ var keyboard = new KeyboardJS(false)
 var playerTexture = PIXI.Texture.fromImage('player.png')
 var streamTexture = PIXI.Texture.fromImage('stream.png')
 
+
 PlayerClient.prototype = new Player()
 PlayerClient.prototype.constructor = PlayerClient
 
@@ -21,10 +22,11 @@ PlayerClient.prototype.generateSprite = function () {
   this.sprite = new PIXI.Sprite(playerTexture)
   this.sprite.tint = this.color
   this.sprite.scale.x = this.sprite.scale.y = 0.4
+  this.ID = 0
   this.pos = this.sprite.position
-  if(this.direction == 1) this.sprite.rotation += Math.PI/2
+  /*if(this.direction == 1) this.sprite.rotation += Math.PI/2
   else if(this.direction == 2) this.sprite.rotation -= Math.PI      
-  else if(this.direction == 3) this.sprite.rotation -= Math.PI/2
+  else if(this.direction == 3) this.sprite.rotation -= Math.PI/2*/
   map.random_position(this.pos)
   this.updatePosition({
     x: this.pos.x,
@@ -118,46 +120,17 @@ PlayerClient.prototype.generateStream = function (dp) {
   this.fullstream.push(this.stream)
 }
 
-PlayerClient.prototype.boost = function (booster) {
-  if(booster == 1) {
-    this.boost_time += 20
-    this.stat.speedup = 1
-    playerSpeed = 15
-  }
-  else if(booster == 2) {
-    this.boost_time += 20
-    this.stat.invisible = 1
-  }
-  else if(booster == 3) {
-    this.boost_time += 20
-    this.stat.invincible = 1
-
-  }
-}
-
-PlayerClient.prototype.initial_stats = function() {
-  this.boost_time = 0
-  if(this.stat.speedup == 1) {
-    this.stat.speedup = 0
-    this.speed = 5
-  }
-  if(this.stat.invisible == 1) {
-    this.stat.invisible = 0
-  }
-  if(this.stat.invincible == 1) {
-    this.stat.invincible = 0
-  } 
-}
-
 
 PlayerClient.prototype.generatePacket = function () {
   var packet = {
+    ID: this.ID,
     username: this.username,
     color: this.color,
     pos: {
       x: this.pos.x,
       y: this.pos.y
     },
+    speed: this.speed,
     direction: this.direction,
     boost_time: this.boost_time,
     stat: {
